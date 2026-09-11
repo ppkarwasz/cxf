@@ -23,7 +23,6 @@ import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.xml.XMLConstants;
 import javax.xml.datatype.DatatypeConstants;
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.stream.XMLStreamReader;
@@ -31,7 +30,6 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
 
 import org.w3c.dom.DocumentFragment;
 import org.w3c.dom.Element;
@@ -46,6 +44,7 @@ import jakarta.jms.TextMessage;
 import jakarta.jms.Topic;
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
+import org.apache.commons.xml.secure.SecureXPathFactory;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.staxutils.StaxUtils;
@@ -246,13 +245,7 @@ public abstract class JmsSubscription extends AbstractSubscription implements Me
                 throw new IllegalStateException("Unsupported dialect: " + contentFilter.getDialect());
             }
             try {
-                XPathFactory xpfactory = XPathFactory.newInstance();
-                try {
-                    xpfactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-                } catch (Throwable t) {
-                    //possibly old version, though doesn't really matter as content is already parsed as an Element
-                }
-                XPath xpath = xpfactory.newXPath();
+                XPath xpath = SecureXPathFactory.newInstance().newXPath();
                 XPathExpression exp = xpath.compile(contentFilter.getContent().get(0).toString());
                 Boolean ret = (Boolean) exp.evaluate(content, XPathConstants.BOOLEAN);
                 return ret.booleanValue();

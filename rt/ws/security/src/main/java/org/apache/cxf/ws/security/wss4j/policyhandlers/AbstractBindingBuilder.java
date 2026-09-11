@@ -37,7 +37,6 @@ import java.util.logging.Logger;
 
 import javax.crypto.SecretKey;
 import javax.security.auth.callback.CallbackHandler;
-import javax.xml.XMLConstants;
 import javax.xml.crypto.dsig.Reference;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamException;
@@ -57,6 +56,7 @@ import org.w3c.dom.NodeList;
 import jakarta.xml.soap.SOAPException;
 import jakarta.xml.soap.SOAPHeader;
 import jakarta.xml.soap.SOAPMessage;
+import org.apache.commons.xml.secure.SecureXPathFactory;
 import org.apache.cxf.attachment.AttachmentUtil;
 import org.apache.cxf.binding.soap.SoapMessage;
 import org.apache.cxf.binding.soap.saaj.SAAJUtils;
@@ -1425,12 +1425,7 @@ public abstract class AbstractBindingBuilder extends AbstractCommonBindingHandle
                     message, SecurityConstants.USE_STR_TRANSFORM, true
                 );
 
-            XPathFactory factory = XPathFactory.newInstance();
-            try {
-                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-            } catch (javax.xml.xpath.XPathFactoryConfigurationException ex) {
-                // ignore
-            }
+            XPathFactory factory = SecureXPathFactory.newInstance();
 
             for (org.apache.wss4j.policy.model.XPath xPath : xpaths) {
                 XPath xpath = factory.newXPath();

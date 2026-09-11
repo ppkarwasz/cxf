@@ -26,15 +26,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import javax.xml.XMLConstants;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import org.apache.commons.xml.secure.SecureXPathFactory;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.helpers.MapNamespaceContext;
 import org.apache.wss4j.common.WSS4JConstants;
@@ -293,13 +292,7 @@ public final class CryptoCoverageUtil {
 
         // XPathFactory and XPath are not thread-safe so we must recreate them
         // each request.
-        final XPathFactory factory = XPathFactory.newInstance();
-        try {
-            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-        } catch (javax.xml.xpath.XPathFactoryConfigurationException ex) {
-            // ignore
-        }
-        final XPath xpath = factory.newXPath();
+        final XPath xpath = SecureXPathFactory.newInstance().newXPath();
 
         if (namespaces != null) {
             xpath.setNamespaceContext(new MapNamespaceContext(namespaces));

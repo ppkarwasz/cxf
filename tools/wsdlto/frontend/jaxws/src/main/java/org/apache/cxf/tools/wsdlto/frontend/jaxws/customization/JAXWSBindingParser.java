@@ -24,19 +24,18 @@ import java.util.logging.Logger;
 
 import javax.wsdl.WSDLException;
 import javax.wsdl.extensions.ExtensionRegistry;
-import javax.xml.XMLConstants;
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.namespace.QName;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import org.apache.commons.text.StringEscapeUtils;
+import org.apache.commons.xml.secure.SecureXPathFactory;
 import org.apache.cxf.common.i18n.Message;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.StringUtils;
@@ -214,14 +213,8 @@ public class JAXWSBindingParser {
         NodeList nlst;
         try {
             ContextImpl contextImpl = new ContextImpl(target);
-            XPathFactory xpathFactory = XPathFactory.newInstance();
-            try {
-                xpathFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-            } catch (javax.xml.xpath.XPathFactoryConfigurationException ex) {
-                // ignore
-            }
 
-            XPath xpath = xpathFactory.newXPath();
+            XPath xpath = SecureXPathFactory.newInstance().newXPath();
             xpath.setNamespaceContext(contextImpl);
             nlst = (NodeList)xpath.evaluate(expression, target, XPathConstants.NODESET);
         } catch (XPathExpressionException e) {

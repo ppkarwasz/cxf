@@ -22,7 +22,6 @@ package org.apache.cxf.ws.security.wss4j.policyvalidators;
 import java.util.Collection;
 import java.util.Map;
 
-import javax.xml.XMLConstants;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpressionException;
@@ -31,6 +30,7 @@ import javax.xml.xpath.XPathFactory;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import org.apache.commons.xml.secure.SecureXPathFactory;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.helpers.MapNamespaceContext;
 import org.apache.cxf.ws.policy.AssertionInfo;
@@ -62,12 +62,7 @@ public class RequiredElementsPolicyValidator implements SecurityPolicyValidator 
             ai.setAsserted(true);
 
             if (rp != null && rp.getXPaths() != null && !rp.getXPaths().isEmpty()) {
-                XPathFactory factory = XPathFactory.newInstance();
-                try {
-                    factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-                } catch (javax.xml.xpath.XPathFactoryConfigurationException ex) {
-                    // ignore
-                }
+                XPathFactory factory = SecureXPathFactory.newInstance();
 
                 for (org.apache.wss4j.policy.model.XPath xPath : rp.getXPaths()) {
                     Map<String, String> namespaces = xPath.getPrefixNamespaceMap();

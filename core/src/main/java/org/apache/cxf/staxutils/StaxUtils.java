@@ -86,6 +86,7 @@ import org.w3c.dom.UserDataHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
 
+import org.apache.commons.xml.secure.SecureXMLInputFactory;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.PropertyUtils;
 import org.apache.cxf.common.util.StringUtils;
@@ -193,10 +194,11 @@ public final class StaxUtils {
 
         XMLInputFactory xif = null;
         try {
+            // Only a factory whose implementation is thread-safe may be shared. The secured factory wraps
+            // that implementation, so its own class name says nothing; ask the implementation itself.
+            final String implName = implementationName();
             xif = createXMLInputFactory(true);
-            String xifClassName = xif.getClass().getName();
-            if (!xifClassName.contains("ctc.wstx") && !xifClassName.contains("xml.xlxp")
-                    && !xifClassName.contains("xml.xlxp2") && !xifClassName.contains("bea.core")) {
+            if (!isKnownThreadSafe(implName)) {
                 xif = null;
             }
         } catch (Throwable t) {
@@ -207,9 +209,7 @@ public final class StaxUtils {
         XMLOutputFactory xof = null;
         try {
             xof = XMLOutputFactory.newInstance();
-            String xofClassName = xof.getClass().getName();
-            if (!xofClassName.contains("ctc.wstx") && !xofClassName.contains("xml.xlxp")
-                && !xofClassName.contains("xml.xlxp2") && !xofClassName.contains("bea.core")) {
+            if (!isKnownThreadSafe(xof.getClass().getName())) {
                 xof = null;
             }
         } catch (Throwable t) {
@@ -292,6 +292,27 @@ public final class StaxUtils {
     }
 
     /**
+     * Returns the class name of the StAX implementation the platform resolves to, or an empty string if it
+     * cannot be determined.
+     */
+    private static String implementationName() {
+        try {
+            return XMLInputFactory.newInstance().getClass().getName();
+        } catch (Throwable t) {
+            return "";
+        }
+    }
+
+    /**
+     * Whether a StAX implementation is one of those known to be safe to share between threads, which is what
+     * lets a single factory stand in for the pool.
+     */
+    private static boolean isKnownThreadSafe(String className) {
+        return className.contains("ctc.wstx") || className.contains("xml.xlxp")
+            || className.contains("xml.xlxp2") || className.contains("bea.core");
+    }
+
+    /**
      * Return a new factory so that the caller can set sticky parameters.
      * @param nsAware
      * @throws XMLStreamException
@@ -299,10 +320,10 @@ public final class StaxUtils {
     public static XMLInputFactory createXMLInputFactory(boolean nsAware) {
         XMLInputFactory factory = null;
         try {
-            factory = XMLInputFactory.newInstance();
+            factory = SecureXMLInputFactory.newInstance();
         } catch (Throwable t) {
             if (LOG.isLoggable(Level.FINE)) {
-                LOG.log(Level.FINE, "XMLInputFactory.newInstance() failed with: ", t);
+                LOG.log(Level.FINE, "SecureXMLInputFactory.newInstance() failed with: ", t);
             }
         }
         if (factory == null || !setRestrictionProperties(factory)) {

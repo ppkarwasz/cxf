@@ -262,8 +262,18 @@ restrictions are relaxed; ReDoS in any regex-based routing.
 1. Out of the box, are CXF's **XML secure-processing limits** (entity expansion off, DTD/external-entity
    resolution off, depth/element/size caps) **on by default** for inbound SOAP and JAX-RS XML providers, so
    an XXE/XML-bomb report against defaults is `VALID`? *Proposed:* secure defaults on; XXE-on-defaults = VALID.
+   *Status:* the DOM, SAX, schema, XSLT, XPath and StAX factories CXF creates are now obtained from Apache
+   Commons Secure XML, so external DTDs and entities are refused and entity expansion is bounded whichever
+   JAXP implementation resolves, rather than only where a `FEATURE_SECURE_PROCESSING` call was made and
+   honoured. The StAX depth, element and size caps are CXF's own and unchanged. Not yet covered: the DOM
+   parsing WSS4J and Santuario perform for WS-Security, and WSDL4J's internal parser *(inferred)*.
 2. Is **remote WSDL/schema/MTOM resolution** disabled (or allow-listed) by default? *Proposed:* not fetched
    from untrusted input by default; SSRF requires integrator opt-in.
+   *Status:* schema and stylesheet resolution now denies by default and is opted back in per reference
+   through `XmlCatalogResolver`, which answers only from an OASIS catalog or a local resource unless the
+   caller asks for `Remote.ALLOWED`. The schemas CXF ships are declared in per-module catalogs, so importing
+   one resolves to the bundled copy instead of its canonical `http://` location. MTOM resolution is
+   unchanged, and a WSDL is still fetched by the locator chain rather than through this path *(inferred)*.
 3. For the shipped **JAX-RS providers**, is unsafe polymorphic/DTD deserialization off by default? *Proposed:*
    yes; unsafe modes are integrator opt-in.
 

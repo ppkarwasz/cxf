@@ -31,6 +31,12 @@
     <packaging>pom</packaging>
     <properties>
         <cxf.protect-xmlschema-collections>false</cxf.protect-xmlschema-collections>
+        <!--
+            Reject an external reference the securing layer would otherwise answer with empty content, so a
+            test that needs one names it instead of failing later on the empty document. A diagnostic, not a
+            runtime setting: it is deliberately not what CXF ships with.
+        -->
+        <cxf.xml.throwOnUnresolved>true</cxf.xml.throwOnUnresolved>
         <cxf.surefire.fork.count>1</cxf.surefire.fork.count>
         <!-- JAXB: see please https://github.com/javaee/jaxb-v2/issues/1184 -->
         <cxf.surefire.format>brief</cxf.surefire.format>
@@ -496,6 +502,7 @@
                         <systemPropertyVariables>
                             <java.io.tmpdir>${basedir}/target</java.io.tmpdir>
                             <cxf.useRandomFirstPort>true</cxf.useRandomFirstPort>
+                            <org.apache.commons.xml.secure.throwOnUnresolved>${cxf.xml.throwOnUnresolved}</org.apache.commons.xml.secure.throwOnUnresolved>
                             <org.apache.cxf.JDKBugHacks.all>true</org.apache.cxf.JDKBugHacks.all>
                             <org.apache.ws.commons.schema.protectReadOnlyCollections>${cxf.protect-xmlschema-collections}</org.apache.ws.commons.schema.protectReadOnlyCollections>
                             <cxf.validateServiceSchemas>${cxf.validateServices}</cxf.validateServiceSchemas>

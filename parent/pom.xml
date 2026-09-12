@@ -107,7 +107,7 @@
         <cxf.commons-jcs-jcache.version>2.2.1</cxf.commons-jcs-jcache.version>
         <cxf.commons-lang3.version>3.20.0</cxf.commons-lang3.version>
         <cxf.commons-logging.version>1.4.0</cxf.commons-logging.version>
-        <cxf.commons-secure-xml.version>1.0.0</cxf.commons-secure-xml.version>
+        <cxf.commons-secure-xml.version>1.0.1-SNAPSHOT</cxf.commons-secure-xml.version>
         <cxf.commons-text.version>1.15.0</cxf.commons-text.version>
         <cxf.checkstyle.version>14.0.0</cxf.checkstyle.version>
         <cxf.derby.version>10.17.1.0</cxf.derby.version>

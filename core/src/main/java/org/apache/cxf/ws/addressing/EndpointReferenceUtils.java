@@ -52,13 +52,12 @@ import org.w3c.dom.ls.LSInput;
 import org.w3c.dom.ls.LSResourceResolver;
 
 import org.xml.sax.InputSource;
-import org.xml.sax.SAXNotRecognizedException;
-import org.xml.sax.SAXNotSupportedException;
 
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBElement;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Marshaller;
+import org.apache.commons.xml.secure.SecureSchemaFactory;
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
 import org.apache.cxf.common.jaxb.JAXBContextCache;
@@ -499,26 +498,7 @@ public final class EndpointReferenceUtils {
     private static Schema createSchema(ServiceInfo serviceInfo, Bus b) {
         Schema schema = serviceInfo.getProperty(Schema.class.getName(), Schema.class);
         if (schema == null) {
-            SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-            try {
-                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-            } catch (SAXNotRecognizedException | SAXNotSupportedException e) {
-                LOG.log(Level.WARNING, "The property '" + XMLConstants.FEATURE_SECURE_PROCESSING
-                    + "' is not supported.");
-            }
-
-            try {
-                factory.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            } catch (SAXNotRecognizedException | SAXNotSupportedException e) {
-                LOG.log(Level.WARNING, "The property '" + XMLConstants.ACCESS_EXTERNAL_DTD + "' is not supported.");
-            }
-
-            try {
-                factory.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-            } catch (SAXNotRecognizedException | SAXNotSupportedException e) {
-                LOG.log(Level.WARNING, "The property '" + XMLConstants.ACCESS_EXTERNAL_SCHEMA + "' is not supported.");
-            }
-
+            SchemaFactory factory = SecureSchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
             Map<String, byte[]> schemaSourcesMap = new LinkedHashMap<>();
             Map<String, Source> schemaSourcesMap2 = new LinkedHashMap<>();
 

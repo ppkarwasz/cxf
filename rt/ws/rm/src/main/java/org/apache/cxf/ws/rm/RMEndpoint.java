@@ -42,11 +42,15 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
+import org.w3c.dom.ls.LSInput;
+
 import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.JAXBException;
+import org.apache.commons.xml.secure.SecureSchemaFactory;
 import org.apache.cxf.binding.soap.SoapVersion;
 import org.apache.cxf.binding.soap.model.SoapBindingInfo;
 import org.apache.cxf.binding.soap.model.SoapOperationInfo;
+import org.apache.cxf.catalog.XmlCatalogResolver;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.PackageUtils;
 import org.apache.cxf.endpoint.Endpoint;
@@ -384,20 +388,16 @@ public class RMEndpoint {
     private static synchronized Schema getSchema() {
         if (rmSchema == null) {
             try {
-                SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-                javax.xml.transform.Source ad = new StreamSource(RMEndpoint.class
-                                             .getResource("/schemas/wsdl/addressing.xsd")
-                                             .openStream(),
-                                             "http://schemas.xmlsoap.org/ws/2004/08/addressing");
-                javax.xml.transform.Source rm = new StreamSource(RMEndpoint.class
-                                                                 .getResource("/schemas/wsdl/wsrm.xsd")
-                                                                 .openStream());
+                final XmlCatalogResolver resolver = new XmlCatalogResolver(null);
+                final SchemaFactory factory = SecureSchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+                factory.setResourceResolver(resolver);
 
-                javax.xml.transform.Source[] schemas = new javax.xml.transform.Source[] {ad, rm};
-                rmSchema = factory.newSchema(schemas);
+                // Resolve the schema by its namespace.
+                final LSInput input = resolver.resolveResource(XMLConstants.W3C_XML_SCHEMA_NS_URI,
+                        RM10Constants.NAMESPACE_URI, null, null, null);
+                rmSchema = factory.newSchema(new StreamSource(input.getByteStream(), input.getSystemId()));
             } catch (Exception ex) {
-                //ignore
+                LOG.log(Level.WARNING, "Could not load the WS-RM schema; messages will not be validated", ex);
             }
         }
         return rmSchema;

@@ -20,8 +20,6 @@
 package org.apache.cxf.jaxrs.utils.schemas;
 
 import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
@@ -35,14 +33,11 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
-import org.w3c.dom.ls.LSInput;
-import org.w3c.dom.ls.LSResourceResolver;
-
+import org.apache.commons.xml.secure.SecureSchemaFactory;
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
-import org.apache.cxf.catalog.OASISCatalogManager;
+import org.apache.cxf.catalog.XmlCatalogResolver;
 import org.apache.cxf.common.util.ClasspathScanner;
-import org.apache.cxf.common.xmlschema.LSInputImpl;
 import org.apache.cxf.jaxrs.utils.ResourceUtils;
 import org.apache.ws.commons.schema.constants.Constants;
 
@@ -82,7 +77,7 @@ public class SchemaHandler {
 
     public static Schema createSchema(List<String> locations, String catalogLocation, final Bus bus) {
 
-        SchemaFactory factory = SchemaFactory.newInstance(Constants.URI_2001_SCHEMA_XSD);
+        SchemaFactory factory = SecureSchemaFactory.newInstance(Constants.URI_2001_SCHEMA_XSD);
         try {
             List<Source> sources = new ArrayList<>();
             for (String loc : locations) {
@@ -107,47 +102,12 @@ public class SchemaHandler {
             if (sources.isEmpty()) {
                 return null;
             }
-            final OASISCatalogManager catalogResolver = OASISCatalogManager.getCatalogManager(bus);
-            if (catalogResolver != null) {
-                catalogLocation = catalogLocation == null
-                    ? SchemaHandler.DEFAULT_CATALOG_LOCATION : catalogLocation;
-                URL catalogURL = ResourceUtils.getResourceURL(catalogLocation, bus);
-                if (catalogURL != null) {
-                    try {
-                        catalogResolver.loadCatalog(catalogURL);
-                        factory.setResourceResolver(new LSResourceResolver() {
-
-                            public LSInput resolveResource(String type, String namespaceURI, String publicId,
-                                                           String systemId, String baseURI) {
-                                try {
-                                    String resolvedLocation = catalogResolver.resolveSystem(systemId);
-
-                                    if (resolvedLocation == null) {
-                                        resolvedLocation = catalogResolver.resolveURI(namespaceURI);
-                                    }
-                                    if (resolvedLocation == null) {
-                                        resolvedLocation = catalogResolver.resolvePublic(
-                                            publicId != null ? publicId : namespaceURI, systemId);
-                                    }
-                                    if (resolvedLocation != null) {
-                                        InputStream resourceStream =
-                                            ResourceUtils.getResourceStream(resolvedLocation, bus);
-                                        if (resourceStream != null) {
-                                            return new LSInputImpl(publicId, systemId, resourceStream);
-                                        }
-                                    }
-                                } catch (Exception ex) {
-                                    // ignore
-                                }
-                                return null;
-                            }
-
-                        });
-                    } catch (IOException ex) {
-                        throw new IllegalArgumentException("Catalog " + catalogLocation + " can not be loaded", ex);
-                    }
-                }
-            }
+            // Answers what the schemas import: an entry in a catalog, or a schema sitting beside the ones
+            // listed, whose system id the sources above carry. Anything else is denied.
+            final XmlCatalogResolver resolver = new XmlCatalogResolver(bus);
+            resolver.loadCatalogs(SchemaHandler.class.getClassLoader(),
+                catalogLocation == null ? SchemaHandler.DEFAULT_CATALOG_LOCATION : catalogLocation);
+            factory.setResourceResolver(resolver);
             return factory.newSchema(sources.toArray(new Source[0]));
         } catch (Exception ex) {
             throw new IllegalArgumentException("Failed to load XML schema : " + ex.getMessage(), ex);

@@ -98,10 +98,14 @@
             <artifactId>${cxf.asm.artifactId}</artifactId>
             <optional>true</optional>
         </dependency>
+        <!--
+            Not optional: OASISCatalogManager silently resolves nothing without it, so every catalog on the
+            classpath, including the one cxf-core itself ships, would be ignored in any module that did not
+            happen to declare this.
+        -->
         <dependency>
             <groupId>xml-resolver</groupId>
             <artifactId>xml-resolver</artifactId>
-            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.glassfish.jaxb</groupId>

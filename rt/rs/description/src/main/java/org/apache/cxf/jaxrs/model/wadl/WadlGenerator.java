@@ -96,6 +96,7 @@ import jakarta.xml.bind.annotation.XmlType;
 import org.apache.commons.xml.secure.SecureTransformerFactory;
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
+import org.apache.cxf.catalog.XmlCatalogResolver;
 import org.apache.cxf.common.jaxb.JAXBBeanInfo;
 import org.apache.cxf.common.jaxb.JAXBContextProxy;
 import org.apache.cxf.common.jaxb.JAXBUtils;
@@ -1316,9 +1317,20 @@ public class WadlGenerator implements ContainerRequestFilter {
     }
 
     private String transformLocally(Message m, UriInfo ui, Source source) throws Exception {
-        InputStream is = ResourceUtils.getResourceStream(stylesheetReference, m.getExchange().getBus());
+        final Bus exchangeBus = m.getExchange().getBus();
+        final URL stylesheet = ResourceUtils.getResourceURL(stylesheetReference, exchangeBus);
+        if (stylesheet == null) {
+            throw new IllegalArgumentException("Cannot find stylesheet: " + stylesheetReference);
+        }
         TransformerFactory transformerFactory = SecureTransformerFactory.newInstance();
-        Transformer t = transformerFactory.newTemplates(new StreamSource(is)).newTransformer();
+        // The stylesheet is the integrator's and may pull in others: the resolver answers those, and the
+        // source carries the stylesheet's own location so a relative href has a base to resolve against.
+        transformerFactory.setURIResolver(new XmlCatalogResolver(exchangeBus));
+        final Transformer t;
+        try (InputStream is = stylesheet.openStream()) {
+            t = transformerFactory.newTemplates(
+                    new StreamSource(is, stylesheet.toExternalForm())).newTransformer();
+        }
         t.setParameter("base.path", m.get("http.base.path"));
         StringWriter stringWriter = new StringWriter();
         t.transform(source, new StreamResult(stringWriter));

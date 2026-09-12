@@ -34,8 +34,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -43,6 +41,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.cxf.common.CXFPermissions;
 import org.apache.cxf.common.classloader.ClassLoaderUtils;
@@ -65,10 +65,32 @@ public class URIResolver implements AutoCloseable {
     private static final Logger LOG = LogUtils.getLogger(URIResolver.class);
     private static final String ALLOWED_URL_SCHEMES_PROPERTY =
         "org.apache.cxf.resource.uriresolver.allowedSchemes";
+
+    /**
+     * URL schemes that wrap another URL.
+     */
+    private static final Set<String> NESTED_URL_SCHEMES = Set.of("jar", "wsjar", "zip");
+
+    /**
+     * URL schemes that read from the local host.
+     */
+    private static final Set<String> LOCAL_URL_SCHEMES =
+            Set.of("file", "classpath", "local", "resource", "vfs", "jrt", "jmod");
+
+    /**
+     * URL schemes that read from another host.
+     */
+    private static final Set<String> REMOTE_URL_SCHEMES = Set.of("http", "https");
+
+    /**
+     * Everything {@link #schemeOf(String) a URI can effectively name} and be fetched.
+     */
     private static final Set<String> DEFAULT_ALLOWED_URL_SCHEMES =
-        Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList("file", "http", "https", "jar", "zip", "wsjar", "local", "classpath", "vfs",
-                    "resource")));
+            Stream.concat(LOCAL_URL_SCHEMES.stream(), REMOTE_URL_SCHEMES.stream())
+                    .collect(Collectors.toUnmodifiableSet());
+
+    /** Bounds the unwrapping of {@link #NESTED_URL_SCHEMES} against a pathological {@code jar:jar:jar:...}. */
+    private static final int MAX_URL_NESTING = 8;
 
     private Map<String, LoadingByteArrayOutputStream> cache = new HashMap<>();
     private File file;
@@ -452,16 +474,98 @@ public class URIResolver implements AutoCloseable {
 
     /**
      * Verifies that the URL scheme is permitted by URIResolver allowlist policy.
+     * <p>
+     * A nesting scheme is unwrapped, and every scheme in the chain is checked, so
+     * {@code jar:http://host/a.jar!/x} is judged on {@code http} as well as on {@code jar}.
+     * </p>
      */
     public static void checkAllowedScheme(URL targetUrl) throws IOException {
-        String scheme = targetUrl.getProtocol();
+        final String scheme = schemeOf(targetUrl.toString());
         if (scheme == null) {
             return;
         }
-        scheme = scheme.toLowerCase(Locale.ROOT);
-        if (!getAllowedSchemes().contains(scheme)) {
+        final Set<String> allowed = getAllowedSchemes();
+        if (!allowed.contains(scheme)) {
             throw new IOException("URL scheme '" + scheme + "' is not permitted for URIResolver. "
-                                  + "Allowed schemes: " + getAllowedSchemes());
+                                  + "Allowed schemes: " + allowed);
+        }
+    }
+
+    /**
+     * Whether reading a URI does not leave the local host.
+     * <p>
+     * A {@link #NESTED_URL_SCHEMES nesting} scheme is unwrapped until a scheme that decides is reached, so
+     * {@code jar:file:/app.jar!/schema.xsd} is local while {@code jar:http://host/app.jar!/schema.xsd} is
+     * not. A URI carrying no scheme is relative and resolves against the classpath, so it is local.
+     * </p>
+     *
+     * @param uri the URI to classify
+     * @return {@code true} if reading it stays on the local host
+     * @since 4.3.0
+     */
+    public static boolean isLocal(String uri) {
+        final String scheme = schemeOf(uri);
+        return scheme == null || LOCAL_URL_SCHEMES.contains(scheme);
+    }
+
+    /**
+     * Whether reading a reference does not leave the local host, given what it is relative to.
+     * <p>
+     * A reference carrying no scheme is relative, so where it reads from is decided by its base.
+     * </p>
+     *
+     * @param baseUriStr the base URI the reference is relative to, or {@code null}
+     * @param uriStr     the reference
+     * @return {@code true} if reading it stays on the local host
+     * @since 4.3.0
+     */
+    public static boolean isLocal(String baseUriStr, String uriStr) {
+        if (schemeOf(uriStr) == null) {
+            return baseUriStr == null || isLocal(baseUriStr);
+        }
+        return isLocal(uriStr);
+    }
+
+    /**
+     * Returns the scheme that decides where a URI reads from.
+     * <p>
+     * A {@link #NESTED_URL_SCHEMES nesting} scheme wraps another URL and is stripped until a scheme that
+     * decides is reached, so {@code jar:file:/app.jar!/schema.xsd} answers {@code file} and
+     * {@code jar:http://host/app.jar!/schema.xsd} answers {@code http}. Nesting schemes never answer: they
+     * say nothing about where the bytes come from, so there is nothing to allow or deny about them.
+     * </p>
+     *
+     * @param uriStr the URI
+     * @return the effective scheme in lower case, or {@code null} if the URI is relative
+     * @since 4.3.0
+     */
+    public static String schemeOf(String uriStr) {
+        String current = uriStr;
+        for (int depth = 0; depth < MAX_URL_NESTING; depth++) {
+            final String scheme = rawSchemeOf(current);
+            if (scheme == null || !NESTED_URL_SCHEMES.contains(scheme)) {
+                return scheme;
+            }
+            // strip one "jar:<url>!/<entry>" wrapper
+            final String wrapped = current.substring(current.indexOf(':') + 1);
+            final int entry = wrapped.indexOf("!/");
+            current = entry < 0 ? wrapped : wrapped.substring(0, entry);
+        }
+        return null;
+    }
+
+    /**
+     * Returns the scheme a URI literally carries, in lower case, or {@code null} if it carries none.
+     *
+     * @param uriStr the URI
+     * @return the scheme, or {@code null}
+     */
+    private static String rawSchemeOf(String uriStr) {
+        try {
+            final String scheme = new URI(uriStr).getScheme();
+            return scheme == null ? null : scheme.toLowerCase(Locale.ROOT);
+        } catch (URISyntaxException | IllegalArgumentException e) {
+            return null;
         }
     }
 

@@ -19,12 +19,14 @@
 
 package org.apache.cxf.resource;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 import org.apache.cxf.helpers.IOUtils;
 
@@ -46,6 +48,81 @@ public class URIResolverTest {
     private URL resourceURL = getClass().getResource("resources/helloworld.bpr");
 
     private Throwable checkingThreadThrowable;      // assumes single-thread test execution
+
+    @Test
+    public void allowedSchemesAreTheLocalOnesPlusHttp() {
+        final Set<String> allowed = URIResolver.getAllowedSchemes();
+
+        for (String local : new String[] {"file", "classpath", "local", "resource", "vfs", "jrt", "jmod"}) {
+            assertTrue(local + " reads from the local host, so it is allowed", allowed.contains(local));
+        }
+        assertTrue(allowed.contains("http"));
+        assertTrue(allowed.contains("https"));
+
+        for (String nesting : new String[] {"jar", "wsjar", "zip"}) {
+            assertFalse(nesting + " never survives schemeOf, so listing it would be dead configuration",
+                        allowed.contains(nesting));
+        }
+        assertFalse(allowed.contains("ftp"));
+    }
+
+    @Test
+    public void schemeOfUnwrapsNestingSchemesToTheRealProtocol() {
+        assertEquals("file", URIResolver.schemeOf("file:/opt/app/schema.xsd"));
+        assertEquals("http", URIResolver.schemeOf("http://host/schema.xsd"));
+        assertNull("a relative reference carries no scheme", URIResolver.schemeOf("schemas/schema.xsd"));
+
+        assertEquals("jar: says nothing; the URL it wraps decides",
+                     "file", URIResolver.schemeOf("jar:file:/opt/app.jar!/schema.xsd"));
+        assertEquals("http", URIResolver.schemeOf("jar:http://host/app.jar!/schema.xsd"));
+        assertEquals("https", URIResolver.schemeOf("wsjar:https://host/app.jar!/schema.xsd"));
+        assertEquals("http", URIResolver.schemeOf("zip:http://host/app.zip!/schema.xsd"));
+        assertEquals("http", URIResolver.schemeOf("jar:jar:jar:http://host/a.jar!/b!/c!/schema.xsd"));
+    }
+
+    @Test
+    public void isLocalDecidesOnTheUrlANestingSchemeWraps() {
+        assertTrue(URIResolver.isLocal("file:/opt/app/schema.xsd"));
+        assertTrue(URIResolver.isLocal("classpath:/schemas/schema.xsd"));
+        assertTrue("a reference carrying no scheme is relative and resolves against the classpath",
+                   URIResolver.isLocal("schemas/schema.xsd"));
+
+        assertFalse(URIResolver.isLocal("http://host/schema.xsd"));
+        assertFalse(URIResolver.isLocal("https://host/schema.xsd"));
+
+        assertTrue("jar: wrapping a file: URL stays local",
+                   URIResolver.isLocal("jar:file:/opt/app/app.jar!/schema.xsd"));
+        assertFalse("jar: wrapping a remote URL is a remote fetch",
+                    URIResolver.isLocal("jar:http://host/app.jar!/schema.xsd"));
+        assertFalse(URIResolver.isLocal("wsjar:https://host/app.jar!/schema.xsd"));
+        assertFalse(URIResolver.isLocal("zip:http://host/app.zip!/schema.xsd"));
+        assertFalse("unwrapping must not be fooled by repeated nesting",
+                    URIResolver.isLocal("jar:jar:jar:http://host/a.jar!/b!/c!/schema.xsd"));
+    }
+
+    @Test
+    public void isLocalTakesARelativeReferenceFromItsBase() {
+        assertTrue(URIResolver.isLocal("file:/opt/app/main.xsd", "sibling.xsd"));
+        assertTrue(URIResolver.isLocal("jar:file:/opt/app.jar!/main.xsd", "sibling.xsd"));
+        assertFalse("a sibling of a remote document is itself remote",
+                    URIResolver.isLocal("http://host/main.xsd", "sibling.xsd"));
+        assertTrue("no base at all means the classpath", URIResolver.isLocal(null, "sibling.xsd"));
+        assertFalse("an absolute reference decides for itself",
+                    URIResolver.isLocal("file:/opt/app/main.xsd", "http://host/other.xsd"));
+    }
+
+    @Test
+    public void checkAllowedSchemeLooksInsideANestingScheme() throws Exception {
+        // the outer scheme alone says nothing: both of these are "jar"
+        URIResolver.checkAllowedScheme(new URL("jar:file:/opt/app.jar!/schema.xsd"));
+
+        try {
+            URIResolver.checkAllowedScheme(new URL("jar:gopher://host/app.jar!/schema.xsd"));
+            fail("a scheme that is not allowed must be rejected even behind jar:");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("gopher"));
+        }
+    }
 
     @Test
     public void testJARProtocol() throws Exception {

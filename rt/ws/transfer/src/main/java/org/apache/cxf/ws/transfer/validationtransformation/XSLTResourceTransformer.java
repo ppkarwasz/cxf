@@ -21,7 +21,6 @@ package org.apache.cxf.ws.transfer.validationtransformation;
 
 import java.util.logging.Logger;
 
-import javax.xml.XMLConstants;
 import javax.xml.transform.Source;
 import javax.xml.transform.Templates;
 import javax.xml.transform.TransformerConfigurationException;
@@ -32,6 +31,7 @@ import org.w3c.dom.Node;
 
 import jakarta.annotation.Resource;
 import jakarta.xml.ws.WebServiceContext;
+import org.apache.commons.xml.secure.SecureTransformerFactory;
 import org.apache.cxf.binding.soap.SoapFault;
 import org.apache.cxf.binding.soap.SoapMessage;
 import org.apache.cxf.binding.soap.SoapVersion;
@@ -62,14 +62,7 @@ public class XSLTResourceTransformer implements ResourceTransformer {
     public XSLTResourceTransformer(Source xsl, ResourceValidator validator) {
         this.validator = validator;
         try {
-            final TransformerFactory transformerFactory = TransformerFactory.newInstance();
-            try {
-                transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-                transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
-            } catch (IllegalArgumentException ex) {
-                // ignore
-            }
-            transformerFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
+            final TransformerFactory transformerFactory = SecureTransformerFactory.newInstance();
             templates = transformerFactory.newTemplates(xsl);
         } catch (TransformerConfigurationException e) {
             LOG.severe(e.getLocalizedMessage());

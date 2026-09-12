@@ -51,7 +51,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
-import javax.xml.XMLConstants;
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.ParserConfigurationException;
@@ -94,6 +93,7 @@ import jakarta.xml.bind.JAXBContext;
 import jakarta.xml.bind.annotation.XmlRootElement;
 import jakarta.xml.bind.annotation.XmlSeeAlso;
 import jakarta.xml.bind.annotation.XmlType;
+import org.apache.commons.xml.secure.SecureTransformerFactory;
 import org.apache.cxf.Bus;
 import org.apache.cxf.BusFactory;
 import org.apache.cxf.common.jaxb.JAXBBeanInfo;
@@ -1309,15 +1309,7 @@ public class WadlGenerator implements ContainerRequestFilter {
         DOMSource domSource = new DOMSource(wadlDoc);
         // temporary workaround
         StringWriter stringWriter = new StringWriter();
-        TransformerFactory transformerFactory = TransformerFactory.newInstance();
-        transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        try {
-            transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
-        } catch (IllegalArgumentException ex) {
-            // ignore
-        }
-
+        TransformerFactory transformerFactory = SecureTransformerFactory.newInstance();
         Transformer transformer = transformerFactory.newTransformer();
         transformer.transform(domSource, new StreamResult(stringWriter));
         return stringWriter.toString();
@@ -1325,15 +1317,7 @@ public class WadlGenerator implements ContainerRequestFilter {
 
     private String transformLocally(Message m, UriInfo ui, Source source) throws Exception {
         InputStream is = ResourceUtils.getResourceStream(stylesheetReference, m.getExchange().getBus());
-        TransformerFactory transformerFactory = TransformerFactory.newInstance();
-        transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        try {
-            transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            transformerFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "");
-        } catch (IllegalArgumentException ex) {
-            // ignore
-        }
-
+        TransformerFactory transformerFactory = SecureTransformerFactory.newInstance();
         Transformer t = transformerFactory.newTemplates(new StreamSource(is)).newTransformer();
         t.setParameter("base.path", m.get("http.base.path"));
         StringWriter stringWriter = new StringWriter();

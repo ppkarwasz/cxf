@@ -20,7 +20,9 @@
 package org.apache.cxf.feature.transform;
 
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 
 import javax.xml.stream.XMLStreamException;
 import javax.xml.transform.Templates;
@@ -30,6 +32,8 @@ import javax.xml.transform.dom.DOMSource;
 
 import org.w3c.dom.Document;
 
+import org.apache.commons.xml.secure.SecureTransformerFactory;
+import org.apache.cxf.catalog.XmlCatalogResolver;
 import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.message.Message;
 import org.apache.cxf.message.MessageUtils;
@@ -55,21 +59,25 @@ public abstract class AbstractXSLTInterceptor extends AbstractPhaseInterceptor<M
         }
 
         try {
-            InputStream xsltStream = ClassLoaderUtils.getResourceAsStream(xsltPath, this.getClass());
-            if (xsltStream == null) {
+            URL xsltUrl = ClassLoaderUtils.getResource(xsltPath, this.getClass());
+            if (xsltUrl == null) {
                 throw new IllegalArgumentException("Cannot load XSLT from path: " + xsltPath);
             }
-            Document doc = StaxUtils.read(xsltStream);
-
-            TransformerFactory transformerFactory = TransformerFactory.newInstance();
-            try {
-                transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            } catch (javax.xml.transform.TransformerConfigurationException ex) {
-                //
+            final Document doc;
+            try (InputStream xsltStream = xsltUrl.openStream()) {
+                doc = StaxUtils.read(xsltStream);
             }
 
-            xsltTemplate = transformerFactory.newTemplates(new DOMSource(doc));
-        } catch (TransformerConfigurationException | XMLStreamException e) {
+            TransformerFactory transformerFactory = SecureTransformerFactory.newInstance();
+            // The stylesheet is the integrator's, and may pull in others: the resolver answers those, and
+            // the source carries the stylesheet's own location so a relative href has a base to resolve
+            // against.
+            transformerFactory.setURIResolver(new XmlCatalogResolver(null));
+
+            DOMSource source = new DOMSource(doc);
+            source.setSystemId(xsltUrl.toExternalForm());
+            xsltTemplate = transformerFactory.newTemplates(source);
+        } catch (TransformerConfigurationException | XMLStreamException | IOException e) {
             throw new IllegalArgumentException(
                                                String.format("Cannot create XSLT template from path: %s",
                                                              xsltPath), e);

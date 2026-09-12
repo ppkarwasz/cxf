@@ -32,10 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.xml.XMLConstants;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 import javax.xml.transform.Result;
@@ -44,7 +42,6 @@ import javax.xml.transform.Templates;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.URIResolver;
 import javax.xml.transform.dom.DOMResult;
 import javax.xml.transform.sax.SAXSource;
@@ -66,6 +63,7 @@ import jakarta.ws.rs.ext.Provider;
 import jakarta.xml.bind.JAXBException;
 import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.Unmarshaller;
+import org.apache.commons.xml.secure.SecureTransformerFactory;
 import org.apache.cxf.common.classloader.ClassLoaderUtils;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.io.CachedOutputStream;
@@ -268,9 +266,19 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             try {
                 filter = factory.newXMLFilter(t);
             } catch (TransformerConfigurationException ex) {
-                TemplatesImpl ti = (TemplatesImpl)t;
+                // Some implementations refuse a foreign Templates object.
+                // Pass them an unwrapped one, which means the settings the wrapper holds have to be applied afterward,
+                // through a getTransformer method that XMLFilter does not declare, but most implementations do.
+                if (!(t instanceof TemplatesImpl ti)) {
+                    throw ex;
+                }
                 filter = factory.newXMLFilter(ti.getTemplates());
-                trySettingProperties(filter, ti);
+                try {
+                    ti.configure((Transformer) filter.getClass().getMethod("getTransformer").invoke(filter));
+                } catch (ReflectiveOperationException e) {
+                    ex.addSuppressed(e);
+                    throw ex;
+                }
             }
             XMLReader reader = new StaxSource(StaxUtils.createXMLStreamReader(is));
             filter.setParent(reader);
@@ -283,25 +291,6 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
         } catch (TransformerException ex) {
             LOG.warning("Transformation exception : " + ex.getMessage());
             throw ExceptionUtils.toInternalServerErrorException(ex, null);
-        }
-    }
-
-    private void trySettingProperties(Object filter, TemplatesImpl ti) {
-        try {
-            //Saxon doesn't allow creating a Filter or Handler from anything other than it's original
-            //Templates.  That then requires setting the parameters after the fact, but there
-            //isn't a standard API for that, so we have to grab the Transformer via reflection to
-            //set the parameters.
-            Transformer tr = (Transformer)filter.getClass().getMethod("getTransformer").invoke(filter);
-            tr.setURIResolver(ti.resolver);
-            for (Map.Entry<String, Object> entry : ti.transformParameters.entrySet()) {
-                tr.setParameter(entry.getKey(), entry.getValue());
-            }
-            for (Map.Entry<String, String> entry : ti.outProps.entrySet()) {
-                tr.setOutputProperty(entry.getKey(), entry.getValue());
-            }
-        } catch (Exception e) {
-            LOG.log(Level.WARNING, "Could not set properties for transfomer", e);
         }
     }
 
@@ -352,13 +341,17 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             return;
         }
         org.apache.cxf.common.jaxb.JAXBUtils.setMinimumEscapeHandler(ms);
-        TransformerHandler th;
-        try {
-            th = factory.newTransformerHandler(t);
-        } catch (TransformerConfigurationException ex) {
-            TemplatesImpl ti = (TemplatesImpl)t;
+        final TransformerHandler th;
+        if (t instanceof TemplatesImpl ti) {
+            // A TrAX implementation builds its products from its own Templates.
+            // It might fail if:
+            // - Templates is a foreign implementation (Saxon).
+            // - Templates.newTransformer() is a foreign implementation (Xalan).
             th = factory.newTransformerHandler(ti.getTemplates());
-            this.trySettingProperties(th, ti);
+            ti.configure(th.getTransformer());
+        } else {
+            // createTemplates is protected, so a subclass may supply something else.
+            th = factory.newTransformerHandler(t);
         }
         Result result = getStreamResult(os, anns, mt);
         if (systemId != null) {
@@ -522,8 +515,7 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             Source source = new StreamSource(r);
             source.setSystemId(urlStream.toExternalForm());
             if (factory == null) {
-                factory = (SAXTransformerFactory)TransformerFactory.newInstance();
-                factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, secureProcessing);
+                factory = (SAXTransformerFactory)SecureTransformerFactory.newInstance();
                 if (uriResolver != null) {
                     factory.setURIResolver(uriResolver);
                 }
@@ -540,15 +532,21 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
         this.refreshTemplates = refresh;
     }
 
+    /**
+     * @param secureProcessing ignored.
+     * @deprecated The transformer factory is secure however the runtime resolves it, and secure processing
+     *             is a setting that cannot be turned back off, so this no longer has an effect.
+     */
+    @Deprecated
     public void setSecureProcessing(boolean secureProcessing) {
         this.secureProcessing = secureProcessing;
     }
 
     private static class TemplatesImpl implements Templates {
 
-        private Templates templates;
-        private URIResolver resolver;
-        private Map<String, Object> transformParameters = new HashMap<>();
+        private final Templates templates;
+        private final URIResolver resolver;
+        private final Map<String, Object> transformParameters = new HashMap<>();
         private Map<String, String> outProps = new HashMap<>();
 
         TemplatesImpl(Templates templates, URIResolver resolver) {
@@ -573,7 +571,10 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
         }
 
         public Transformer newTransformer() throws TransformerConfigurationException {
-            Transformer tr = templates.newTransformer();
+            return configure(templates.newTransformer());
+        }
+
+        Transformer configure(Transformer tr) {
             tr.setURIResolver(resolver);
             for (Map.Entry<String, Object> entry : transformParameters.entrySet()) {
                 tr.setParameter(entry.getKey(), entry.getValue());
@@ -583,6 +584,5 @@ public class XSLTJaxbProvider<T> extends JAXBElementProvider<T> {
             }
             return tr;
         }
-
     }
 }

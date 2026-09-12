@@ -40,6 +40,7 @@ import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import org.apache.commons.xml.secure.SecureTransformerFactory;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.tools.common.toolspec.Tool;
@@ -164,8 +165,7 @@ public class CommandLineParser {
         // output the result document
         if (LOG.isLoggable(Level.FINE)) {
             try {
-                TransformerFactory transformerFactory = TransformerFactory.newInstance();
-                transformerFactory.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
+                TransformerFactory transformerFactory = SecureTransformerFactory.newInstance();
                 Transformer serializer = transformerFactory.newTransformer(
                                     new StreamSource(Tool.class
                                         .getResourceAsStream("indent-no-xml-declaration.xsl")));

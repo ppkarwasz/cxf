@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+-->
+<!--
+    Declares the schemas cxf-core carries on its classpath, so a document importing one of them
+    resolves to the bundled copy instead of being fetched over the network.
+
+    OASISCatalogManager loads every META-INF/jax-ws-catalog.xml on the classpath, so a module adding
+    its own catalog contributes to the same resolution without any of them referring to the others.
+
+    Each schema is listed twice: by <uri> for an xs:import that names only a namespace, and by
+    <system> for one that names the canonical location as its schemaLocation.
+-->
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog" prefer="system">
+
+    <!-- W3C -->
+    <uri name="http://www.w3.org/2001/XMLSchema" uri="classpath:/schemas/wsdl/XMLSchema.xsd"/>
+    <system systemId="http://www.w3.org/2001/XMLSchema.xsd" uri="classpath:/schemas/wsdl/XMLSchema.xsd"/>
+    <uri name="http://www.w3.org/XML/1998/namespace" uri="classpath:/schemas/wsdl/xml.xsd"/>
+    <system systemId="http://www.w3.org/2001/xml.xsd" uri="classpath:/schemas/wsdl/xml.xsd"/>
+    <system systemId="http://www.w3.org/2009/01/xml.xsd" uri="classpath:/schemas/wsdl/xml.xsd"/>
+    <system systemId="http://www.w3.org/2001/03/xml.xsd" uri="classpath:/schemas/wsdl/xml.xsd"/>
+    <uri name="http://www.w3.org/2005/08/addressing" uri="classpath:/schemas/wsdl/ws-addr.xsd"/>
+    <system systemId="http://www.w3.org/2005/08/addressing/ws-addr.xsd" uri="classpath:/schemas/wsdl/ws-addr.xsd"/>
+    <!--
+        http://www.w3.org/2006/03/addressing/ws-addr.xsd is deliberately left to ws-discovery-api, which
+        already maps it: every module shipping its own ws-addr.xsd carries the revision declaring
+        wsa:ReferenceParameters, which the copy here does not, and two catalogs claiming one location
+        would resolve by classpath order.
+    -->
+    <uri name="http://www.w3.org/2006/05/addressing/wsdl" uri="classpath:/schemas/wsdl/ws-addr-wsdl.xsd"/>
+    <system systemId="http://www.w3.org/2006/05/addressing/wsdl/ws-addr-wsdl.xsd" uri="classpath:/schemas/wsdl/ws-addr-wsdl.xsd"/>
+    <uri name="http://www.w3.org/2005/05/xmlmime" uri="classpath:/schemas/wsdl/xmime.xsd"/>
+    <system systemId="http://www.w3.org/2005/05/xmlmime" uri="classpath:/schemas/wsdl/xmime.xsd"/>
+
+    <!-- WSDL 1.1 and its bindings -->
+    <uri name="http://schemas.xmlsoap.org/wsdl/" uri="classpath:/schemas/wsdl/wsdl.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/wsdl/" uri="classpath:/schemas/wsdl/wsdl.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/wsdl/2003-02-11.xsd" uri="classpath:/schemas/wsdl/wsdl.xsd"/>
+    <uri name="http://schemas.xmlsoap.org/wsdl/soap/" uri="classpath:/schemas/wsdl/soap-binding.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/wsdl/soap/" uri="classpath:/schemas/wsdl/soap-binding.xsd"/>
+    <uri name="http://schemas.xmlsoap.org/wsdl/soap12/" uri="classpath:/schemas/wsdl/soap12-binding.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/wsdl/soap12/" uri="classpath:/schemas/wsdl/soap12-binding.xsd"/>
+    <uri name="http://schemas.xmlsoap.org/wsdl/http/" uri="classpath:/schemas/wsdl/http.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/wsdl/http/" uri="classpath:/schemas/wsdl/http.xsd"/>
+    <uri name="http://schemas.xmlsoap.org/wsdl/mime/" uri="classpath:/schemas/wsdl/mime-binding.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/wsdl/mime/" uri="classpath:/schemas/wsdl/mime-binding.xsd"/>
+    <uri name="http://schemas.xmlsoap.org/soap/encoding/" uri="classpath:/schemas/wsdl/soap-encoding.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/soap/encoding/" uri="classpath:/schemas/wsdl/soap-encoding.xsd"/>
+
+    <!-- WS-Addressing (submission) and WS-ReliableMessaging -->
+    <uri name="http://schemas.xmlsoap.org/ws/2004/03/addressing" uri="classpath:/schemas/wsdl/addressing200403.xsd"/>
+    <uri name="http://schemas.xmlsoap.org/ws/2004/08/addressing" uri="classpath:/schemas/wsdl/addressing.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/ws/2004/08/addressing" uri="classpath:/schemas/wsdl/addressing.xsd"/>
+    <uri name="http://schemas.xmlsoap.org/ws/2005/02/rm" uri="classpath:/schemas/wsdl/wsrm.xsd"/>
+    <system systemId="http://schemas.xmlsoap.org/ws/2005/02/rm" uri="classpath:/schemas/wsdl/wsrm.xsd"/>
+
+    <!-- WS-I -->
+    <uri name="http://ws-i.org/profiles/basic/1.1/xsd" uri="classpath:/schemas/wsdl/swaref.xsd"/>
+    <system systemId="http://ws-i.org/profiles/basic/1.1/swaref.xsd" uri="classpath:/schemas/wsdl/swaref.xsd"/>
+
+    <!-- CXF's own configuration schemas -->
+    <uri name="http://cxf.apache.org/core" uri="classpath:/schemas/core.xsd"/>
+    <uri name="http://cxf.apache.org/bus/extension" uri="classpath:/schemas/configuration/extension.xsd"/>
+    <uri name="http://cxf.apache.org/configuration/beans" uri="classpath:/schemas/configuration/cxf-beans.xsd"/>
+    <uri name="http://cxf.apache.org/configuration/parameterized-types" uri="classpath:/schemas/configuration/parameterized-types.xsd"/>
+    <uri name="http://cxf.apache.org/configuration/security" uri="classpath:/schemas/configuration/security.xsd"/>
+
+    <!-- CXF publishes these at a location as well, and its own files import them by it. -->
+    <system systemId="http://cxf.apache.org/schemas/configuration/cxf-beans.xsd" uri="classpath:/schemas/configuration/cxf-beans.xsd"/>
+    <system systemId="http://cxf.apache.org/schemas/configuration/parameterized-types.xsd" uri="classpath:/schemas/configuration/parameterized-types.xsd"/>
+    <system systemId="http://cxf.apache.org/schemas/configuration/security.xsd" uri="classpath:/schemas/configuration/security.xsd"/>
+</catalog>

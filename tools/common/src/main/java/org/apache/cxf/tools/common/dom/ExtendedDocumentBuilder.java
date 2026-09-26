@@ -25,8 +25,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.xml.XMLConstants;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
@@ -41,6 +39,7 @@ import org.xml.sax.SAXException;
 
 import org.apache.commons.xml.secure.SecureSchemaFactory;
 import org.apache.cxf.common.logging.LogUtils;
+import org.apache.cxf.helpers.DOMUtils;
 import org.apache.cxf.staxutils.StaxUtils;
 
 /**
@@ -51,8 +50,6 @@ public class ExtendedDocumentBuilder {
 
     private static final Logger LOG = LogUtils.getL7dLogger(ExtendedDocumentBuilder.class);
 
-    private DocumentBuilderFactory parserFactory;
-    private SchemaFactory schemaFactory;
     private Schema schema;
 
     public ExtendedDocumentBuilder() {
@@ -65,25 +62,14 @@ public class ExtendedDocumentBuilder {
 
     public void setValidating(boolean validate) {
         if (validate) {
-            this.schemaFactory = SecureSchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
             try {
+                SchemaFactory schemaFactory = SecureSchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
                 this.schema = schemaFactory.newSchema(new StreamSource(getSchemaLocation()));
             } catch (SAXException e) {
                 LOG.log(Level.SEVERE, "SCHEMA_FACTORY_EXCEPTION_MSG");
             }
-            try {
-                parserFactory = DocumentBuilderFactory.newInstance();
-                try {
-                    parserFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-                    parserFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-                } catch (ParserConfigurationException e) {
-                    //old version, not supported.
-                }
-                parserFactory.setNamespaceAware(true);
-                parserFactory.setSchema(this.schema);
-            } catch (UnsupportedOperationException e) {
-                LOG.log(Level.WARNING, "DOC_PARSER_NOT_SUPPORTED", e);
-            }
+        } else {
+            this.schema = null;
         }
     }
 
@@ -91,12 +77,12 @@ public class ExtendedDocumentBuilder {
         if (in == null && LOG.isLoggable(Level.FINE)) {
             LOG.fine("ExtendedDocumentBuilder trying to parse a null inputstream");
         }
-        if (parserFactory != null) {
-            //validating, so need to use the validating parser factory
+        if (this.schema != null) {
+            //validating, so need a builder that carries the schema
             try {
-                return parserFactory.newDocumentBuilder().parse(in);
-            } catch (ParserConfigurationException e) {
-                LOG.log(Level.SEVERE, "NEW_DOCUMENT_BUILDER_EXCEPTION_MSG");
+                return DOMUtils.createNSDocumentBuilder(this.schema).parse(in);
+            } catch (UnsupportedOperationException e) {
+                LOG.log(Level.WARNING, "DOC_PARSER_NOT_SUPPORTED", e);
             }
         }
         return StaxUtils.read(in);

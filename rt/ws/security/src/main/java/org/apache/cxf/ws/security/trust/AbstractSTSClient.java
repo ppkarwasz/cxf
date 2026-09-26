@@ -42,10 +42,8 @@ import javax.wsdl.Definition;
 import javax.wsdl.Types;
 import javax.wsdl.extensions.ExtensibilityElement;
 import javax.wsdl.extensions.schema.Schema;
-import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 import javax.xml.transform.dom.DOMSource;
@@ -635,12 +633,7 @@ public abstract class AbstractSTSClient implements Configurable, InterceptorProv
     }
 
     protected Element downloadSchema(String schemaLocation) throws Exception {
-        DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-        dbf.setNamespaceAware(true);
-        dbf.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, Boolean.TRUE);
-        dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-
-        DocumentBuilder documentBuilder = dbf.newDocumentBuilder();
+        DocumentBuilder documentBuilder = DOMUtils.createNSDocumentBuilder();
         Document document;
         try (URIResolver resolver = new URIResolver(schemaLocation)) {
             document = documentBuilder.parse(resolver.getInputStream());

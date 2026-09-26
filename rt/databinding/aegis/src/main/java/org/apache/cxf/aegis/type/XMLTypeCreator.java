@@ -37,8 +37,6 @@ import java.util.logging.Logger;
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
@@ -110,29 +108,21 @@ public class XMLTypeCreator extends AbstractTypeCreator {
         stopClasses.add(Throwable.class);
     }
 
-    private static final DocumentBuilderFactory AEGIS_DOCUMENT_BUILDER_FACTORY;
+    /** The schema aegis mapping files are validated against, or {@code null} not to validate. */
+    private static final Schema AEGIS_SCHEMA;
     // cache of classes to documents
     private Map<String, Document> documents = new HashMap<>();
     static {
-        AEGIS_DOCUMENT_BUILDER_FACTORY = DocumentBuilderFactory.newInstance();
-        AEGIS_DOCUMENT_BUILDER_FACTORY.setNamespaceAware(true);
-        try {
-            AEGIS_DOCUMENT_BUILDER_FACTORY.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            AEGIS_DOCUMENT_BUILDER_FACTORY.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        } catch (javax.xml.parsers.ParserConfigurationException ex) {
-            // ignore
-        }
-
+        Schema aegisSchema = null;
         String path = "/META-INF/cxf/aegis.xsd";
         try (InputStream is = XMLTypeCreator.class.getResourceAsStream(path)) {
             if (is != null) {
                 SchemaFactory schemaFactory = SecureSchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-                Schema aegisSchema = schemaFactory.newSchema(new StreamSource(is));
-                AEGIS_DOCUMENT_BUILDER_FACTORY.setSchema(aegisSchema);
+                aegisSchema = schemaFactory.newSchema(new StreamSource(is));
             }
         } catch (IOException ex) {
             // ignore
-        } catch (Throwable e) {
+        } catch (Exception e) {
             String msg = "Could not set aegis schema.  Not validating.";
             if (LOG.isLoggable(Level.FINE)) {
                 LOG.log(Level.INFO, msg, e);
@@ -140,6 +130,7 @@ public class XMLTypeCreator extends AbstractTypeCreator {
                 LOG.log(Level.INFO, msg);
             }
         }
+        AEGIS_SCHEMA = aegisSchema;
     }
 
     private volatile XPathUtils xpathUtils;
@@ -151,13 +142,7 @@ public class XMLTypeCreator extends AbstractTypeCreator {
     }
 
     private Document readAegisFile(InputStream is, final String path) throws IOException {
-        DocumentBuilder documentBuilder;
-        try {
-            documentBuilder = AEGIS_DOCUMENT_BUILDER_FACTORY.newDocumentBuilder();
-        } catch (ParserConfigurationException e) {
-            LOG.log(Level.SEVERE, "Unable to create a document builder, e");
-            throw new RuntimeException("Unable to create a document builder, e");
-        }
+        DocumentBuilder documentBuilder = DOMUtils.createNSDocumentBuilder(AEGIS_SCHEMA);
         org.w3c.dom.Document doc;
         documentBuilder.setErrorHandler(new ErrorHandler() {
 

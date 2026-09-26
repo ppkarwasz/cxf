@@ -19,7 +19,6 @@
 package org.apache.cxf.aegis.type.xml;
 
 import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParserFactory;
 import javax.xml.stream.FactoryConfigurationError;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
@@ -38,6 +37,7 @@ import org.apache.cxf.aegis.type.AegisType;
 import org.apache.cxf.aegis.xml.MessageReader;
 import org.apache.cxf.aegis.xml.MessageWriter;
 import org.apache.cxf.aegis.xml.stax.ElementWriter;
+import org.apache.cxf.helpers.SAXUtils;
 import org.apache.cxf.staxutils.StaxUtils;
 
 /**
@@ -102,11 +102,7 @@ public class SourceType extends AegisType {
     }
 
     protected XMLReader createXMLReader() throws SAXException, ParserConfigurationException {
-        SAXParserFactory spf = SAXParserFactory.newInstance();
-        spf.setNamespaceAware(true);
-        // Disable DTDs
-        spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        return spf.newSAXParser().getXMLReader();
+        return SAXUtils.createNSXMLReader();
     }
 
 }

@@ -34,12 +34,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.logging.Level;
 
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.validation.Schema;
 
 import org.w3c.dom.Attr;
 import org.w3c.dom.Comment;
@@ -54,6 +56,7 @@ import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import org.apache.commons.xml.secure.SecureDocumentBuilderFactory;
 import org.apache.cxf.common.logging.LogUtils;
 import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.common.util.StringUtils;
@@ -67,6 +70,8 @@ public final class DOMUtils {
         = Collections.synchronizedMap(new WeakHashMap<ClassLoader, DocumentBuilder>());
     private static final String XMLNAMESPACE = "xmlns";
     private static volatile Document emptyDocument;
+
+    private static final String DISALLOW_DOCTYPE_DECL = "http://apache.org/xml/features/disallow-doctype-decl";
 
     private static final ClassValue<Method> GET_DOM_ELEMENTS_METHODS = new ClassValue<Method>() {
         @Override
@@ -125,28 +130,68 @@ public final class DOMUtils {
     private DOMUtils() {
     }
 
-    private static DocumentBuilder getDocumentBuilder() throws ParserConfigurationException {
+    private static DocumentBuilder getDocumentBuilder() {
         ClassLoader loader = getContextClassLoader();
         if (loader == null) {
             loader = getClassLoader(DOMUtils.class);
         }
         if (loader == null) {
-            return createDocumentBuilder();
+            return createNSDocumentBuilder();
         }
         DocumentBuilder factory = DOCUMENT_BUILDERS.get(loader);
         if (factory == null) {
-            factory = createDocumentBuilder();
+            factory = createNSDocumentBuilder();
             DOCUMENT_BUILDERS.put(loader, factory);
         }
         return factory;
     }
 
-    private static DocumentBuilder createDocumentBuilder() throws ParserConfigurationException {
-        DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
-        f.setNamespaceAware(true);
-        f.setFeature(javax.xml.XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        return f.newDocumentBuilder();
+    /**
+     * Creates a namespace-aware {@link DocumentBuilder}.
+     *
+     * <p>A DOCTYPE declaration is refused by policy: an implementation that can refuse one fails the
+     * parse outright, and on one that cannot, the declaration is read, but the external resources it
+     * names resolve to nothing.</p>
+     *
+     * @return a new document builder.
+     * @since 4.3.0
+     */
+    public static DocumentBuilder createNSDocumentBuilder() {
+        return createNSDocumentBuilder(null);
+    }
+
+    /**
+     * Creates a namespace-aware {@link DocumentBuilder} validating against a schema.
+     *
+     * <p>A DOCTYPE declaration is refused by policy: an implementation that can refuse one fails the
+     * parse outright, and on one that cannot, the declaration is read, but the external resources it
+     * names resolve to nothing.</p>
+     *
+     * @param schema the schema to validate against while parsing, or {@code null}.
+     * @return a new document builder.
+     * @throws UnsupportedOperationException when the implementation does not support validation.
+     * @since 4.3.0
+     */
+    public static DocumentBuilder createNSDocumentBuilder(Schema schema) {
+        DocumentBuilderFactory f = SecureDocumentBuilderFactory.newNSInstance();
+        try {
+            // Where the implementation can refuse a DOCTYPE, let it fail the parse.
+            f.setFeature(DISALLOW_DOCTYPE_DECL, true);
+        } catch (ParserConfigurationException e) {
+            // It cannot, so the DOCTYPE is read; what it points at is still ignored by Commons Secure XML.
+            LogUtils.getL7dLogger(DOMUtils.class).log(Level.FINE,
+                "This implementation does not support `" + DISALLOW_DOCTYPE_DECL + "`. "
+                    + "DOCTYPE declarations will be ignored instead.", e);
+        }
+        if (schema != null) {
+            f.setSchema(schema);
+        }
+        try {
+            return f.newDocumentBuilder();
+        } catch (ParserConfigurationException e) {
+            // Unreachable in practice: JAXP implementations fail eagerly, as the factory is configured.
+            throw new IllegalStateException(e);
+        }
     }
 
     private static ClassLoader getContextClassLoader() {
@@ -175,17 +220,12 @@ public final class DOMUtils {
 
     /**
      * Creates a new Document object
-     * @throws ParserConfigurationException
      */
     public static Document newDocument() {
         return createDocument();
     }
     public static Document createDocument() {
-        try {
-            return getDocumentBuilder().newDocument();
-        } catch (ParserConfigurationException e) {
-            throw new RuntimeException(e);
-        }
+        return getDocumentBuilder().newDocument();
     }
 
     private static synchronized Document createEmptyDocument() {
